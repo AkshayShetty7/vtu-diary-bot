@@ -1,0 +1,31 @@
+name: VTU Diary Auto-Fill
+
+on:
+  schedule:
+    - cron: '30 12 * * *'  # 6:00 PM IST daily (12:30 UTC)
+  workflow_dispatch:         # Manual trigger from GitHub Actions tab
+
+jobs:
+  fill-diary:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install selenium webdriver-manager
+
+      - name: Install Chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Run diary script
+        env:
+          VTU_USERNAME: ${{ secrets.VTU_USERNAME }}
+          VTU_PASSWORD: ${{ secrets.VTU_PASSWORD }}
+        run: python vtu_auto_fill.py
