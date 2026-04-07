@@ -2,8 +2,8 @@ name: VTU Diary Auto-Fill
 
 on:
   schedule:
-    - cron: '30 12 * * *'  # 6:00 PM IST daily (12:30 UTC)
-  workflow_dispatch:         # Manual trigger from GitHub Actions tab
+    - cron: '30 12 * * *'  # 6:00 PM IST daily
+  workflow_dispatch:
 
 jobs:
   fill-diary:
@@ -19,7 +19,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install selenium webdriver-manager
+        run: pip install selenium webdriver-manager pytz
 
       - name: Install Chrome
         uses: browser-actions/setup-chrome@v1
