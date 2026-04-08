@@ -11,7 +11,7 @@ import pytz
 import time, json, os, sys
 
 
-# ── LOAD CREDENTIALS ──────────────────────────────────────
+# ── CREDENTIALS ───────────────────────────────────────────
 USERNAME = os.environ.get("VTU_USERNAME")
 PASSWORD = os.environ.get("VTU_PASSWORD")
 
@@ -31,8 +31,7 @@ if today_str not in all_entries:
     print(f"ℹ️ No entry scheduled for {today_str}")
     sys.exit(0)
 
-entry = all_entries[today_str]
-
+entry    = all_entries[today_str]
 SUMMARY  = entry["summary"]
 LEARNING = entry["learning"]
 BLOCKERS = entry.get("blockers", "No blockers today")
@@ -43,7 +42,7 @@ SKILLS   = entry.get("skills", ["Python", "Machine Learning"])
 print(f"📅 Running entry for {today_str}")
 
 
-# ── CHROME OPTIONS ────────────────────────────────────────
+# ── CHROME OPTIONS (GITHUB ACTIONS HEADLESS) ──────────────
 options = webdriver.ChromeOptions()
 options.add_argument("--headless=new")
 options.add_argument("--no-sandbox")
@@ -120,8 +119,7 @@ print("✅ Selected internship")
 time.sleep(1)
 
 
-# ── SELECT DATE ───────────────────────────────────────────
-# Open date picker — button has aria-haspopup="dialog"
+# ── SELECT DATE (IST) ─────────────────────────────────────
 date_trigger = wait.until(
     EC.element_to_be_clickable(
         (By.XPATH, "//button[@aria-haspopup='dialog']")
@@ -131,38 +129,26 @@ driver.execute_script("arguments[0].click();", date_trigger)
 print("✅ Date picker opened")
 time.sleep(1)
 
-# Click today — aria-label starts with "Today," (confirmed from browser diagnostic)
-# Fallback: use IST date to build aria-label manually
-try:
-    today_btn = wait.until(
-        EC.element_to_be_clickable(
-            (By.XPATH, "//button[starts-with(@aria-label,'Today,')]")
+now_ist     = datetime.now(ist)
+today_day   = str(now_ist.day)
+today_month = now_ist.strftime("%B")
+today_year  = str(now_ist.year)
+print(f"📅 IST today: {today_day} {today_month} {today_year}")
+
+today_btn = wait.until(
+    EC.element_to_be_clickable(
+        (By.XPATH,
+         f"//button[contains(@aria-label,'{today_month}') and "
+         f"contains(@aria-label,'{today_year}') and "
+         f"not(contains(@aria-label,'Go to')) and "
+         f"normalize-space(text())='{today_day}']"
         )
     )
-    driver.execute_script("arguments[0].click();", today_btn)
-    print("✅ Selected today via aria-label='Today,'")
-
-except:
-    # Fallback: click by exact day number text — avoids prev/next month duplicates
-    # Use IST date
-    today_day = str(datetime.now(ist).day)
-    today_month = datetime.now(ist).strftime("%B")  # e.g. "April"
-    today_year  = str(datetime.now(ist).year)
-
-    # aria-label format: "Monday, April 7th, 2026"
-    today_btn = wait.until(
-        EC.element_to_be_clickable(
-            (By.XPATH,
-             f"//button[contains(@aria-label,'{today_month}') and "
-             f"contains(@aria-label,'{today_year}') and "
-             f"not(contains(@aria-label,'Go to'))]"
-             f"[normalize-space(text())='{today_day}']"
-            )
-        )
-    )
-    driver.execute_script("arguments[0].click();", today_btn)
-    print(f"✅ Selected today via fallback: {today_str}")
-
+)
+label = today_btn.get_attribute("aria-label")
+print(f"📅 Clicking: {label}")
+driver.execute_script("arguments[0].click();", today_btn)
+print(f"✅ Date selected: {label}")
 time.sleep(0.5)
 
 
@@ -184,7 +170,7 @@ wait.until(
 )
 
 if "already submitted" in driver.page_source.lower():
-    print("⚠️ Entry already exists")
+    print("⚠️ Entry already exists for today. Skipping.")
     driver.quit()
     sys.exit(0)
 
@@ -245,21 +231,39 @@ for skill in SKILLS:
 print("✅ Skills added")
 
 
+# ── CLOSE SKILLS DROPDOWN BEFORE SAVING ───────────────────
+webdriver.ActionChains(driver).send_keys(Keys.ESCAPE).perform()
+time.sleep(0.5)
+driver.find_element(By.TAG_NAME, "body").click()
+time.sleep(0.5)
+
+
 # ── SAVE ──────────────────────────────────────────────────
-wait.until(
+save_button = wait.until(
     EC.element_to_be_clickable(
         (By.XPATH, "//button[contains(text(),'Save')]")
     )
-).click()
+)
+driver.execute_script("arguments[0].scrollIntoView(true);", save_button)
+time.sleep(0.5)
+driver.execute_script("arguments[0].click();", save_button)
+print("✅ Save clicked")
 
 
 # ── VERIFY ────────────────────────────────────────────────
-wait.until(
-    lambda d:
-    "entries" in d.current_url.lower()
-    or "submitted" in d.page_source.lower()
-    or "success" in d.page_source.lower()
-)
+try:
+    wait.until(
+        lambda d:
+        "edit-diary-entry" in d.current_url.lower()
+        or "diary-entries" in d.current_url.lower()
+    )
+    print("✅ Diary entry successfully submitted!")
+    print(f"📍 Final URL: {driver.current_url}")
+except:
+    driver.save_screenshot("save_failed.png")
+    print("⚠️ Save failed — screenshot saved")
+    print(f"📍 Current URL: {driver.current_url}")
+    sys.exit(1)
 
-print("✅ Diary entry successfully submitted")
+
 driver.quit()
